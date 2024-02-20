@@ -1,16 +1,12 @@
-with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Unchecked_Deallocation;
-
+with Ada.Text_IO, Ada.Integer_Text_IO, Ada.Unchecked_Deallocation;
+use Ada.Text_IO, Ada.Integer_Text_IO;
 
 procedure Main is
 
    amountOfThreads: Integer;
-   last: Natural;
-   inputText: String (1 .. 80);
-   step: Integer;
-   type MathTask is array (Integer range 0 .. 20) of Integer;
+   type StepTaskArray is array (Integer range <>) of Integer;
    isRunning: Boolean := True;
-   mathTasks: MathTask;
+
 
    procedure ToString(id: Integer;
                       amount: Long_Long_Integer ;
@@ -27,54 +23,64 @@ procedure Main is
                  Character'Val(10) & "Result of calc: " & result'image &
                  Character'Val(10) & "Step: " & step'image &
                  Character'Val(10) & "======================================================");
-
    end ToString;
 
-   task type CalculateProgressionThread(id: Integer; step: Integer);
-   task type TaskScheduler;
+   task type CalculateProgressionThread is
+      entry Start(id: Integer; step: Integer);
+   end CalculateProgressionThread;
+
+   task type TaskScheduler is
+      entry Start;
+   end TaskScheduler;
+
+   type ThreadsArr is array (Integer range <>) of CalculateProgressionThread;
 
    task body CalculateProgressionThread is
       result: Long_Long_Integer  := 0;
       amountOfIteration: Long_Long_Integer  := 0;
+      idCopy: Integer;
+      stepCopy: Integer;
    begin
+      accept Start(id: Integer; step: Integer) do
+         idCopy:= id;
+         stepCopy:= step;
+      end Start;
       while(isRunning) loop
-         result := result + Long_Long_Integer'Value(step'image);
+         result := result + Long_Long_Integer'Value(stepCopy'image);
          amountOfIteration := amountOfIteration + 1;
       end loop;
-      ToString(id, amountOfIteration, result, step);
-
+      ToString(idCopy, amountOfIteration, result, stepCopy);
    end CalculateProgressionThread;
 
    task body TaskScheduler is
    begin
-      delay 3.0;
-      isRunning:= False;
+      accept Start do
+         delay 3.0;
+         isRunning:= False;
+
+      end Start;
    end TaskScheduler;
-
-   type SchedulerPtr is access all TaskScheduler;
-   type CalcProgressPtr is access all CalculateProgressionThread;
-
-   calcThead: CalcProgressPtr;
-   scheduler: SchedulerPtr;
-
-   procedure FreeSchedulerObj is new Ada.Unchecked_Deallocation(TaskScheduler, SchedulerPtr);
 begin
-
    Put("Write amount of threads: ");
-   Get_Line(inputText, last);
-   amountOfThreads := Integer'value(inputText(1..last));
+   Get(amountOfThreads);
 
-   for i in 1 .. amountOfThreads loop
-      Put("Write an step of regression: ");
-      Get_Line(inputText, last);
-      step := Integer'value(inputText(1..last));
-      mathTasks(i) := step;
-   end loop;
+   declare
+      stepsArr: StepTaskArray (1 .. amountOfThreads);
+      step: Integer;
+      threads: ThreadsArr (1 .. amountOfThreads);
+      scheduler: TaskScheduler;
+   begin
+      for i in stepsArr'Range loop
+         Put("Write an step of regression: ");
+         Get(step);
+         stepsArr(i) := step;
+      end loop;
 
-   for i in 1 .. amountOfThreads loop
-      calcThead := new CalculateProgressionThread(i, mathTasks(i));
-   end loop;
+      for i in stepsArr'Range loop
+         threads(i).Start(i, stepsArr(i));
+      end loop;
 
-   scheduler := new TaskScheduler;
-   FreeSchedulerObj(scheduler);
+      scheduler.Start;
+   end;
+
 end Main;
